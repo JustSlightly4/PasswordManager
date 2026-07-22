@@ -18,6 +18,7 @@ def main():
     menu_bar = tk.Menu(root, borderwidth=0)
 
     #Add the File button to the menu bar
+    #along with its menu buttons
     file_menu = tk.Menu(menu_bar, tearoff=0)
     file_menu.add_command(label="New...", command=lambda: new_database(root))
     file_menu.add_command(label="Open", command=lambda: open_database(root))
@@ -33,6 +34,7 @@ def main():
     menu_bar.add_cascade(label="File", menu=file_menu)
 
     #Add the Group button to the menu bar
+    #along with its menu buttons
     group_menu = tk.Menu(menu_bar, tearoff=0)
     group_menu.add_command(label="New Vault", command=lambda: print("New Vault selected"))
     group_menu.add_command(label="Open Vault...", command=lambda: print("Open Vault selected"))
@@ -64,7 +66,7 @@ def main():
     img_btn_new_entry = tk.Button(
         tool_bar,
         image=icon_new_entry,
-        command=lambda: open_add_entry_window(root),
+        command=lambda: add_entry(root),
         bd=0,
     )
     img_btn_new_entry.pack(side="left", padx=1, pady=1)

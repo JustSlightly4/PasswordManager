@@ -3,17 +3,20 @@ import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 import apsw
 
-
+#Creates a new database
 def new_database(root):
+    #Opens the file system to search for a place for the file
     db_path = filedialog.asksaveasfilename(
         defaultextension=".db",
         filetypes=[("Database Files", "*.db"), ("All Files", "*.*")],
         title="Create New Password Database",
     )
 
+    #If user backed out, end function
     if not db_path:
         return
 
+    #Create the popup window for creating the master key
     add_win = tk.Toplevel(root)
     add_win.title("Create Master Key")
     add_win.geometry("400x180")
@@ -21,11 +24,16 @@ def new_database(root):
     add_win.grab_set()
     add_win.transient(root)
 
+    #BUTTON FRAME (Packed at the bottom first so it stays fixed at the bottom)
+    btn_frame = ttk.Frame(add_win, padding=(15, 10))
+    btn_frame.pack(side="bottom", fill="x")
+
+    #FORM FRAME (Fills all remaining space above the button frame)
     form_frame = ttk.Frame(add_win, padding=15)
-    form_frame.pack(fill="both", expand=True)
+    form_frame.pack(side="top", fill="both", expand=True)
     form_frame.columnconfigure(1, weight=1)
 
-    # Master Password Entry
+    #Master Password Entry
     ttk.Label(form_frame, text="Master Password:").grid(
         row=0, column=0, sticky="w", pady=5
     )
@@ -33,40 +41,33 @@ def new_database(root):
     password_entry.grid(row=0, column=1, sticky="ew", pady=5)
     password_entry.focus_set()
 
-    # Master Password Repeat Entry
-    ttk.Label(form_frame, text="Repeat Password:").grid(
-        row=1, column=0, sticky="w", pady=5
-    )
-    repeat_password_entry = ttk.Entry(form_frame, show="*")
-    repeat_password_entry.grid(row=1, column=1, sticky="ew", pady=5)
-
+    #Internal function for the button in the popup window to create the database
     def create_database():
+        #Get password typed in
         master_key = password_entry.get()
-        repeat_key = repeat_password_entry.get()
 
+        #Show an error if key was not entered
         if not master_key:
             messagebox.showerror(
                 "Error", "Master password cannot be empty!", parent=add_win
             )
             return
 
-        if master_key != repeat_key:
-            messagebox.showerror(
-                "Error", "Passwords do not match!", parent=add_win
-            )
-            return
-
         try:
             close_database(root)
 
-            # Open connection using apsw
+            #Open connection using apsw
             root.conn = apsw.Connection(db_path)
 
-            # Set cipher to SQLCipher (AES-256) and pass key via APSW pragma method
+            #Set cipher to SQLCipher (AES-256) and pass key via APSW pragma method
             root.conn.pragma("cipher", "sqlcipher")
             root.conn.pragma("key", master_key)
 
             cursor = root.conn.cursor()
+
+            #Start an explicit transaction to pause auto-saving
+            cursor.execute("BEGIN IMMEDIATE;")
+
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS users (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,7 +80,23 @@ def new_database(root):
                 )
             """)
 
+            #---------- ADD SAMPLE ENTRIES ----------
+            sample_entries = [
+                ("Sample Entry", "User Name", "Password", "", ""),
+                ("Sample Entry #2", "Michael321", "12345", "", ""),
+            ]
+
+            cursor.executemany(
+                """
+                INSERT INTO users (title, username, password, url, notes)
+                VALUES (?, ?, ?, ?, ?)
+            """,
+                sample_entries,
+            )
+            #----------------------------------------
+
             clear_table(root.database_table)
+            populate_table(root)
 
             messagebox.showinfo(
                 "Success", "Database created successfully!", parent=root
@@ -94,30 +111,28 @@ def new_database(root):
             if os.path.exists(db_path):
                 os.remove(db_path)
 
-    btn_frame = ttk.Frame(form_frame)
-    btn_frame.grid(row=2, column=0, columnspan=2, pady=(15, 0), sticky="e")
-
+    #OK and Cancel button at the bottom of the screen
     cancel_btn = ttk.Button(btn_frame, text="Cancel", command=add_win.destroy)
     cancel_btn.pack(side="right", padx=(5, 0))
 
-    create_btn = ttk.Button(
-        btn_frame, text="Create Database", command=create_database
-    )
+    create_btn = ttk.Button(btn_frame, text="OK", command=create_database)
     create_btn.pack(side="right")
 
     add_win.bind("<Return>", lambda event: create_database())
 
+#Open a database from the file system
 def open_database(root):
-    # 1. Prompt user to select an existing database file
+    #Get the user to select an existing database file
     db_path = filedialog.askopenfilename(
         filetypes=[("Database Files", "*.db"), ("All Files", "*.*")],
         title="Open Password Database"
     )
     
+    #If user backed out, end function
     if not db_path:
-        return  # User canceled file selection
+        return
 
-    # 2. Prompt user for the master password
+    #Fields to enter the database base password
     pass_win = tk.Toplevel(root)
     pass_win.title("Enter Master Password")
     pass_win.geometry("350x130")
@@ -134,35 +149,49 @@ def open_database(root):
     password_entry.grid(row=0, column=1, sticky="ew", pady=5)
     password_entry.focus_set()
 
+    #Attempts to unlock a database with a given password
     def unlock():
+        #Get the password from the entry field
         master_key = password_entry.get()
-        if not master_key:
-            messagebox.showerror("Error", "Password cannot be empty!", parent=pass_win)
-            return
 
         try:
-            # Close existing connection if any
-            if root.conn is not None:
-                close_database(root)
+            #Close existing connection
+            close_database(root)
 
+            #Establish connection with database
             root.conn = apsw.Connection(db_path)
 
-            # Set cipher and pass key safely using APSW's pragma method
+            #Set cipher and pass key safely using APSW's pragma method
             root.conn.pragma("cipher", "sqlcipher")
             root.conn.pragma("key", master_key)
 
             cursor = root.conn.cursor()
-            # Force a read against sqlite_master to verify key correctness
+
+            #Force a read against sqlite_master to verify key correctness
             cursor.execute("SELECT count(*) FROM sqlite_master;")
 
-            populate_table(root)
-            pass_win.destroy()
-            messagebox.showinfo("Success", "Database unlocked successfully!", parent=root)
+            #1. Start an explicit transaction to pause auto-saving
+            cursor.execute("BEGIN IMMEDIATE;")
 
-        except apsw.SQLError:
-            messagebox.showerror("Error", "Incorrect master password or corrupt database.", parent=pass_win)
+            #Populate the table with the information from the database
+            populate_table(root)
+
+            #Get rid of the popup window
+            pass_win.destroy()
+
+        #If there is an error of some kind catch the exception, show an error, and close database
+        except apsw.Error:
+            messagebox.showerror(
+                "Error",
+                f"{db_path}\n\n" 
+                "Failed to load the specified file!\n\n"
+                "The master key is invalid!\n\n"
+                "Make sure that the master key is correct and try it again.", 
+                parent=pass_win
+            )
             close_database(root)
 
+    #Buttons for canceling the form and to attempt to unlock the database
     btn_frame = ttk.Frame(form_frame)
     btn_frame.grid(row=1, column=0, columnspan=2, pady=(15, 0), sticky="e")
 
@@ -172,33 +201,47 @@ def open_database(root):
     open_btn = ttk.Button(btn_frame, text="Unlock", command=unlock)
     open_btn.pack(side="right")
 
-    pass_win.bind("<Return>", lambda event: unlock())
+    pass_win.bind("<Return>", lambda event: unlock()) #Pressing enter will unlock the database
 
+#Deletes all items/rows from a Treeview table.
 def clear_table(tree):
-    """Deletes all items/rows from a Treeview table."""
     for item in tree.get_children():
         tree.delete(item)
 
+#Closes a database if it has a connection
 def close_database(root):
     if root.conn is not None:
+        try:
+            cursor = root.conn.cursor()
+            #Cancel any unsaved changes before closing connection
+            cursor.execute("ROLLBACK;")
+        except Exception:
+            pass  #Fail gracefully if no transaction was active
+        
         root.conn.close()
         root.conn = None
         clear_table(root.database_table)
 
-
+#Saves a database file
 def save_database(root):
     if root.conn is None:
         messagebox.showwarning("Warning", "No database is currently open.")
         return
 
     try:
-        # Note: APSW autocommits by default outside of explicit transactions.
-        # Running COMMIT manually is only needed inside a manual transaction block.
-        print("Database changes saved to disk.")
+        cursor = root.conn.cursor()
+        
+        #1. Commit all uncommitted changes (new entries, edits, etc.)
+        cursor.execute("COMMIT;")
+        
+        #2. Re-open a transaction for future uncommitted edits
+        cursor.execute("BEGIN IMMEDIATE;")
+        
+        messagebox.showinfo("Saved", "Database changes saved to disk.", parent=root)
     except Exception as e:
-        messagebox.showerror("Error", f"Failed to save database: {e}")
+        messagebox.showerror("Error", f"Failed to save database: {e}", parent=root)
 
-
+#Populates the table with the data from a database
 def populate_table(root):
     for row in root.database_table.get_children():
         root.database_table.delete(row)
@@ -212,8 +255,7 @@ def populate_table(root):
     for row in cursor.fetchall():
         root.database_table.insert("", "end", values=row)
 
-
-def open_add_entry_window(root):
+def add_entry(root):
     if root.conn is None:
         messagebox.showwarning(
             "No Database", "Please open or create a database first!"
@@ -231,7 +273,7 @@ def open_add_entry_window(root):
     form_frame.pack(fill="both", expand=True)
     form_frame.columnconfigure(1, weight=1)
 
-    # Form Fields
+    #Form Fields
     ttk.Label(form_frame, text="Title:").grid(
         row=0, column=0, sticky="w", pady=5
     )
