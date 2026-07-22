@@ -10,6 +10,13 @@ def main():
     root.title("Password Manager")
     root.geometry("800x500")
 
+    # Load PNG image using PhotoImage
+    icon = tk.PhotoImage(file="assets/favicon/application_favicon.png")
+
+    # Set it as the window icon
+    # The 'True' flag applies it to all future top-level windows as well
+    root.iconphoto(True, icon)
+
     #Create database connection
     root.conn = None
 
