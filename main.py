@@ -52,7 +52,7 @@ def main():
     img_btn_new_database = tk.Button(
         tool_bar,
         image=icon_new_database,
-        command=lambda: print("Picture button clicked!"),
+        command=lambda: new_database(root),
         bd=0,
     )
     img_btn_new_database.pack(side="left", padx=1, pady=1)
@@ -76,7 +76,7 @@ def main():
     img_btn_save_database = tk.Button(
         tool_bar,
         image=icon_save_database,
-        command=lambda: print("Save database image button clicked!"),
+        command=lambda: save_database(root),
         bd=0,
     )
     img_btn_save_database.pack(side="left", padx=1, pady=1)
