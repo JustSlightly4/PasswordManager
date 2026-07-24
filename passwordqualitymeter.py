@@ -12,7 +12,13 @@ class PasswordQualityMeter(ttk.Frame):
         self.entry_widget = entry_widget
         self.max_bits = max_bits
 
-        # Quality meter canvas
+        # 1. Character length label
+        # Pack this first to the right so it reserves its space on the right edge
+        self.lbl_ch = ttk.Label(self, text="0 ch.", font=("Segoe UI", 8))
+        self.lbl_ch.pack(side="right", padx=(8, 0))
+
+        # 2. Quality meter canvas
+        # Pack to the left with fill="x" and expand=True to take up the remaining space
         self.quality_bar = tk.Canvas(
             self,
             height=18,
@@ -21,10 +27,6 @@ class PasswordQualityMeter(ttk.Frame):
             highlightbackground="#a0a0a0",
         )
         self.quality_bar.pack(side="left", fill="x", expand=True)
-
-        # Character length label
-        self.lbl_ch = ttk.Label(self, text="0 ch.", font=("Segoe UI", 8))
-        self.lbl_ch.pack(side="right", padx=(8, 0))
 
         # Handle window resizes
         self.quality_bar.bind("<Configure>", lambda e: self.update_meter())

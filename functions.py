@@ -4,11 +4,12 @@ from tkinter import filedialog, messagebox, ttk
 import apsw
 import math
 import string
+import json
 from passwordqualitymeter import PasswordQualityMeter
 from passwordgenerator import PasswordGenerator
+import tooltips as tt
 
-import tkinter as tk
-from tkinter import ttk, messagebox
+PROFILES_FILE = "profiles.json"
 
 def confirm_weak_password(parent_window, bits, threshold=80):
     """
@@ -137,10 +138,36 @@ def open_database(root):
     #Fields to enter the database base password
     pass_win = tk.Toplevel(root)
     pass_win.title("Enter Master Password")
-    pass_win.geometry("350x130")
+    pass_win.geometry("350x160")
     pass_win.resizable(False, False)
     pass_win.grab_set()
     pass_win.transient(root)
+
+    # ==================== HEADER BANNER ====================
+    header_frame = tk.Frame(pass_win, bg="#1b2a47", height=60)
+    header_frame.pack(side="top", fill="x")
+    header_frame.pack_propagate(False)
+
+    title_label = tk.Label(
+        header_frame,
+        text="Enter Master Password",
+        font=("Segoe UI", 12, "bold"),
+        fg="white",
+        bg="#1b2a47",
+    )
+    title_label.pack(anchor="w", padx=15, pady=(8, 0))
+
+    path_label = tk.Label(
+        header_frame,
+        text=os.path.basename(db_path),
+        font=("Segoe UI", 8),
+        fg="#a2b3d1",
+        bg="#1b2a47",
+    )
+    path_label.pack(anchor="w", padx=15, pady=(2, 5))
+
+    accent_bar = tk.Frame(pass_win, bg="#e67e22", height=2)
+    accent_bar.pack(side="top", fill="x")
 
     form_frame = ttk.Frame(pass_win, padding=15)
     form_frame.pack(fill="both", expand=True)
@@ -203,7 +230,7 @@ def open_database(root):
     cancel_btn = ttk.Button(btn_frame, text="Cancel", command=pass_win.destroy)
     cancel_btn.pack(side="right", padx=(5, 0))
 
-    open_btn = ttk.Button(btn_frame, text="Unlock", command=unlock)
+    open_btn = ttk.Button(btn_frame, text="OK", command=unlock)
     open_btn.pack(side="right")
 
     pass_win.bind("<Return>", lambda event: unlock()) #Pressing enter will unlock the database
@@ -904,10 +931,7 @@ def show_entry_dialog(root, is_edit=False, item_id=None):
     # 1. Title Row
     ttk.Label(tab_general, text="Title:").grid(row=0, column=0, sticky="w", pady=4)
     title_entry = ttk.Entry(tab_general)
-    title_entry.grid(row=0, column=1, sticky="ew", pady=4, padx=(0, 5))
-    
-    btn_icon = ttk.Button(tab_general, text="🔑", width=4)
-    btn_icon.grid(row=0, column=2, pady=4)
+    title_entry.grid(row=0, column=1, columnspan=2, sticky="ew", pady=4)
 
     # 2. Username Row
     ttk.Label(tab_general, text="User name:").grid(row=1, column=0, sticky="w", pady=4)
@@ -924,8 +948,12 @@ def show_entry_dialog(root, is_edit=False, item_id=None):
         password_entry.config(show=show_char)
         repeat_entry.config(show=show_char)
 
-    btn_gen = ttk.Button(tab_general, text="•••", width=4, command=toggle_show_password)
+    # Load the image (use PhotoImage for .gif / .png)
+    eye_icon = tk.PhotoImage(file="assets/icons/icon_toggle_password_visibility.png")
+    btn_gen = ttk.Button(tab_general, image=eye_icon, width=4, command=toggle_show_password)
+    btn_gen.image = eye_icon  # Keep a reference so Python's garbage collector doesn't erase it!
     btn_gen.grid(row=2, column=2, pady=4)
+    tt.ToolTip(btn_gen, "Show/hide password using asterisks")
 
     # 4. Repeat Password Row (tk.Entry used for background highlight)
     ttk.Label(tab_general, text="Repeat:").grid(row=3, column=0, sticky="w", pady=4)
@@ -963,16 +991,22 @@ def show_entry_dialog(root, is_edit=False, item_id=None):
         # Launch generator dialog with the callback attached
         show_password_generator_dialog(dialog, callback=set_generated_password)
 
-    btn_tools_pass = ttk.Button(tab_general, text="🛠️", width=4, command=open_password_generator)
-    btn_tools_pass.grid(row=3, column=2, pady=4)
+    icon_password_generator = tk.PhotoImage(file="assets/icons/icon_generate_password.png")
+    img_btn_gen_pass = ttk.Button(tab_general, image=icon_password_generator, width=4, command=open_password_generator)
+    img_btn_gen_pass.image = icon_password_generator  # Keep a reference so Python's garbage collector doesn't erase it!
+    img_btn_gen_pass.grid(row=3, column=2, pady=4)
+    tt.ToolTip(img_btn_gen_pass, "Generate a password")
 
     # 5. Quality Meter Row
     ttk.Label(tab_general, text="Quality:").grid(row=4, column=0, sticky="w", pady=4)
     quality_meter = PasswordQualityMeter(tab_general, entry_widget=password_entry)
-    quality_meter.grid(row=4, column=1, sticky="ew", pady=4, padx=(0, 5))
+    quality_meter.grid(row=4, column=1, sticky="ew", pady=4, padx=(0, 60))
 
-    btn_info = ttk.Button(tab_general, text="ℹ️", width=4)
-    btn_info.grid(row=4, column=2, pady=4)
+    icon_toggle_quality_estimation = tk.PhotoImage(file="assets/icons/icon_toggle_quality_estimation.png")
+    img_btn_toggle_quality_estimation = ttk.Button(tab_general, image=icon_toggle_quality_estimation, width=4, command=open_password_generator)
+    img_btn_toggle_quality_estimation.image = icon_toggle_quality_estimation  # Keep a reference so Python's garbage collector doesn't erase it!
+    img_btn_toggle_quality_estimation.grid(row=4, column=2, pady=4)
+    tt.ToolTip(img_btn_toggle_quality_estimation, "Generate a password")
 
     # 6. URL Row
     ttk.Label(tab_general, text="URL:").grid(row=5, column=0, sticky="w", pady=4)
@@ -1084,13 +1118,11 @@ def edit_entry(root):
 
     show_entry_dialog(root, is_edit=True, item_id=selected[0])
 
-def show_password_generator_dialog(parent_window, callback=None):
-    """Displays the KeePass-style Password Generation Options dialog box.
+PROFILES_FILE = "profiles.json"
 
-    :param parent_window: The Tkinter root/toplevel window parent.
-    :param callback: Optional function callback receiving the generated password
-        string upon 'OK'.
-    """
+
+def show_password_generator_dialog(parent_window, callback=None):
+    """Displays the KeePass-style Password Generation Options dialog box with profile saving support."""
     dialog = tk.Toplevel(parent_window)
     dialog.title("Password Generator")
     dialog.geometry("540x540")
@@ -1137,6 +1169,49 @@ def show_password_generator_dialog(parent_window, callback=None):
     notebook.add(tab_advanced, text="Advanced")
     notebook.add(tab_preview, text="Preview")
 
+    # ==================== PROFILES DATA & JSON PERSISTENCE ====================
+    DEFAULT_PROFILES = {
+        "Automatically generated passwords",
+        "Hex Key 128-bit",
+        "Hex Key 256-bit",
+    }
+
+    base_profiles = {
+        "Automatically generated passwords": {
+            "length": 20, "upper": True, "lower": True, "digits": True,
+            "minus": False, "underline": False, "space": False, "special": True,
+            "brackets": False, "latin1": False, "custom": ""
+        },
+        "Hex Key 128-bit": {
+            "length": 32, "upper": True, "lower": False, "digits": True,
+            "minus": False, "underline": False, "space": False, "special": False,
+            "brackets": False, "latin1": False, "custom": ""
+        },
+        "Hex Key 256-bit": {
+            "length": 64, "upper": True, "lower": False, "digits": True,
+            "minus": False, "underline": False, "space": False, "special": False,
+            "brackets": False, "latin1": False, "custom": ""
+        }
+    }
+
+    # Load profile data from JSON if file exists, falling back to built-ins
+    profiles_data = base_profiles.copy()
+    if os.path.exists(PROFILES_FILE):
+        try:
+            with open(PROFILES_FILE, "r", encoding="utf-8") as f:
+                loaded_profiles = json.load(f)
+                profiles_data.update(loaded_profiles)
+        except Exception as e:
+            messagebox.showwarning("Warning", f"Could not load profiles from JSON: {e}", parent=dialog)
+
+    def save_profiles_to_json():
+        """Helper to write current profiles_data dict to JSON file."""
+        try:
+            with open(PROFILES_FILE, "w", encoding="utf-8") as f:
+                json.dump(profiles_data, f, indent=4)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save profiles to JSON: {e}", parent=dialog)
+
     # ==================== PROFILE ROW ====================
     profile_frame = ttk.Frame(tab_settings)
     profile_frame.pack(fill="x", pady=(0, 10))
@@ -1145,12 +1220,7 @@ def show_password_generator_dialog(parent_window, callback=None):
 
     profile_cb = ttk.Combobox(
         profile_frame,
-        values=[
-            "(Derive from previous password)",
-            "Automatically generated passwords",
-            "Hex Key 128-bit",
-            "Hex Key 256-bit",
-        ],
+        values=list(profiles_data.keys()),
         state="readonly",
     )
     profile_cb.current(0)
@@ -1174,25 +1244,8 @@ def show_password_generator_dialog(parent_window, callback=None):
     charset_container = ttk.Frame(settings_group)
     charset_container.pack(fill="x", anchor="w")
 
-    # Length Spinbox
-    len_frame = ttk.Frame(charset_container)
-    len_frame.pack(fill="x", pady=2)
-    ttk.Label(len_frame, text="Length of generated password:").pack(
-        side="left"
-    )
-
+    # Variables
     var_length = tk.IntVar(value=20)
-    spin_length = ttk.Spinbox(
-        len_frame, from_=1, to=128, textvariable=var_length, width=6
-    )
-    spin_length.pack(side="right")
-
-    # Checkboxes Grid
-    chk_frame = ttk.Frame(charset_container)
-    chk_frame.pack(fill="x", pady=5)
-    chk_frame.columnconfigure(0, weight=1)
-    chk_frame.columnconfigure(1, weight=1)
-
     var_upper = tk.BooleanVar(value=True)
     var_lower = tk.BooleanVar(value=True)
     var_digits = tk.BooleanVar(value=True)
@@ -1204,47 +1257,132 @@ def show_password_generator_dialog(parent_window, callback=None):
     var_brackets = tk.BooleanVar(value=False)
     var_latin1 = tk.BooleanVar(value=False)
 
+    # Length Spinbox
+    len_frame = ttk.Frame(charset_container)
+    len_frame.pack(fill="x", pady=2)
+    ttk.Label(len_frame, text="Length of generated password:").pack(side="left")
+
+    spin_length = ttk.Spinbox(
+        len_frame, from_=1, to=128, textvariable=var_length, width=6
+    )
+    spin_length.pack(side="right")
+
+    # Checkboxes Grid
+    chk_frame = ttk.Frame(charset_container)
+    chk_frame.pack(fill="x", pady=5)
+    chk_frame.columnconfigure(0, weight=1)
+    chk_frame.columnconfigure(1, weight=1)
+
     # Column 1
-    ttk.Checkbutton(
-        chk_frame, text="Upper-case (A, B, C, ...)", variable=var_upper
-    ).grid(row=0, column=0, sticky="w", pady=2)
-    ttk.Checkbutton(
-        chk_frame, text="Lower-case (a, b, c, ...)", variable=var_lower
-    ).grid(row=1, column=0, sticky="w", pady=2)
-    ttk.Checkbutton(
-        chk_frame, text="Digits (0, 1, 2, ...)", variable=var_digits
-    ).grid(row=2, column=0, sticky="w", pady=2)
-    ttk.Checkbutton(
-        chk_frame, text="Minus (-)", variable=var_minus
-    ).grid(row=3, column=0, sticky="w", pady=2)
-    ttk.Checkbutton(
-        chk_frame, text="Underline (_)", variable=var_underline
-    ).grid(row=4, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Upper-case (A, B, C, ...)", variable=var_upper).grid(row=0, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Lower-case (a, b, c, ...)", variable=var_lower).grid(row=1, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Digits (0, 1, 2, ...)", variable=var_digits).grid(row=2, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Minus (-)", variable=var_minus).grid(row=3, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Underline (_)", variable=var_underline).grid(row=4, column=0, sticky="w", pady=2)
 
     # Column 2
-    ttk.Checkbutton(
-        chk_frame, text="Space ( )", variable=var_space
-    ).grid(row=0, column=1, sticky="w", pady=2)
-    ttk.Checkbutton(
-        chk_frame, text="Special (!, $, %, &, ...)", variable=var_special
-    ).grid(row=1, column=1, sticky="w", pady=2)
-    ttk.Checkbutton(
-        chk_frame,
-        text="Brackets ([, ], {, }, (, ), <, >)",
-        variable=var_brackets,
-    ).grid(row=2, column=1, sticky="w", pady=2)
-    ttk.Checkbutton(
-        chk_frame,
-        text="Latin-1 Supplement (Ä, μ, ¶, ...)",
-        variable=var_latin1,
-    ).grid(row=3, column=1, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Space ( )", variable=var_space).grid(row=0, column=1, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Special (!, $, %, &, ...)", variable=var_special).grid(row=1, column=1, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Brackets ([, ], {, }, (, ), <, >)", variable=var_brackets).grid(row=2, column=1, sticky="w", pady=2)
+    ttk.Checkbutton(chk_frame, text="Latin-1 Supplement (Ä, μ, ¶, ...)", variable=var_latin1).grid(row=3, column=1, sticky="w", pady=2)
 
     # Custom characters input
-    ttk.Label(
-        charset_container, text="Also include the following characters:"
-    ).pack(anchor="w", pady=(5, 2))
+    ttk.Label(charset_container, text="Also include the following characters:").pack(anchor="w", pady=(5, 2))
     ent_custom_chars = ttk.Entry(charset_container)
     ent_custom_chars.pack(fill="x", pady=(0, 5))
+
+    # ==================== PROFILE CONTROL LOGIC ====================
+    def load_profile_settings(event=None):
+        selected_profile = profile_cb.get()
+        if selected_profile not in profiles_data:
+            return
+
+        data = profiles_data[selected_profile]
+        var_length.set(data.get("length", 20))
+        var_upper.set(data.get("upper", True))
+        var_lower.set(data.get("lower", True))
+        var_digits.set(data.get("digits", True))
+        var_minus.set(data.get("minus", False))
+        var_underline.set(data.get("underline", False))
+        var_space.set(data.get("space", False))
+        var_special.set(data.get("special", False))
+        var_brackets.set(data.get("brackets", False))
+        var_latin1.set(data.get("latin1", False))
+
+        ent_custom_chars.delete(0, tk.END)
+        ent_custom_chars.insert(0, data.get("custom", ""))
+
+    profile_cb.bind("<<ComboboxSelected>>", load_profile_settings)
+
+    def save_custom_profile():
+        """Saves current character set configurations to a new or existing profile and writes to JSON."""
+        from tkinter import simpledialog
+
+        current_name = profile_cb.get()
+        profile_name = simpledialog.askstring(
+            "Save Profile",
+            "Enter profile name to save current generator options:",
+            parent=dialog,
+            initialvalue=current_name
+        )
+
+        if not profile_name or not profile_name.strip():
+            return
+
+        profile_name = profile_name.strip()
+
+        # Update dictionary state with form inputs
+        profiles_data[profile_name] = {
+            "length": var_length.get(),
+            "upper": var_upper.get(),
+            "lower": var_lower.get(),
+            "digits": var_digits.get(),
+            "minus": var_minus.get(),
+            "underline": var_underline.get(),
+            "space": var_space.get(),
+            "special": var_special.get(),
+            "brackets": var_brackets.get(),
+            "latin1": var_latin1.get(),
+            "custom": ent_custom_chars.get(),
+        }
+
+        # Persist to disk
+        save_profiles_to_json()
+
+        # Refresh combobox options
+        profile_cb["values"] = list(profiles_data.keys())
+        profile_cb.set(profile_name)
+
+    def delete_custom_profile():
+        """Deletes the currently selected custom profile and updates JSON."""
+        current_profile = profile_cb.get()
+
+        if current_profile in DEFAULT_PROFILES:
+            messagebox.showwarning(
+                "Protected Profile",
+                f"The built-in profile '{current_profile}' cannot be deleted.",
+                parent=dialog
+            )
+            return
+
+        confirm = messagebox.askyesno(
+            "Delete Profile",
+            f"Are you sure you want to delete profile '{current_profile}'?",
+            parent=dialog
+        )
+
+        if confirm:
+            del profiles_data[current_profile]
+            save_profiles_to_json()
+            profile_cb["values"] = list(profiles_data.keys())
+            profile_cb.current(0)
+            load_profile_settings()
+
+    btn_edit.config(command=save_custom_profile)
+    btn_del.config(command=delete_custom_profile)
+
+    # Initial load trigger
+    load_profile_settings()
 
     # ==================== BOTTOM BUTTON BAR ====================
     sep = ttk.Separator(dialog, orient="horizontal")
@@ -1256,9 +1394,7 @@ def show_password_generator_dialog(parent_window, callback=None):
     btn_help = ttk.Button(btn_bar, text="Help", width=10)
     btn_help.pack(side="left")
 
-    btn_cancel = ttk.Button(
-        btn_bar, text="Cancel", width=10, command=dialog.destroy
-    )
+    btn_cancel = ttk.Button(btn_bar, text="Cancel", width=10, command=dialog.destroy)
     btn_cancel.pack(side="right", padx=(5, 0))
 
     def handle_ok():
