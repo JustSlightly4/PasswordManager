@@ -3,11 +3,6 @@ import string
 import tkinter as tk
 from tkinter import ttk
 
-import math
-import string
-import tkinter as tk
-from tkinter import ttk
-
 
 class PasswordQualityMeter(ttk.Frame):
     """Reusable widget for displaying password entropy quality bar and character count."""
@@ -40,32 +35,27 @@ class PasswordQualityMeter(ttk.Frame):
 
     @staticmethod
     def calculate_entropy(password):
-        """Calculates entropy in bits based on character set size and length."""
+        """Calculates exact Shannon entropy in bits for a given password string."""
         if not password:
             return 0, 0
 
-        has_lowercase = any(c in string.ascii_lowercase for c in password)
-        has_uppercase = any(c in string.ascii_uppercase for c in password)
-        has_digits = any(c in string.digits for c in password)
-        has_symbols = any(c in string.punctuation for c in password)
+        length = len(password)
 
-        charset_size = 0
-        if has_lowercase:
-            charset_size += 26
-        if has_uppercase:
-            charset_size += 26
-        if has_digits:
-            charset_size += 10
-        if has_symbols:
-            charset_size += 32  # standard punctuation set count
+        # 1. Count occurrences of each character
+        char_counts = {}
+        for char in password:
+            char_counts[char] = char_counts.get(char, 0) + 1
 
-        # Fallback for any non-standard unicode characters
-        if charset_size == 0:
-            charset_size = 256
+        # 2. Compute Shannon Entropy: -sum(P(x) * log2(P(x)))
+        shannon_entropy = 0.0
+        for count in char_counts.values():
+            p = count / length
+            shannon_entropy -= p * math.log2(p)
 
-        # Entropy (bits) = Length * log2(Charset Size)
-        entropy_bits = round(len(password) * math.log2(charset_size))
-        return entropy_bits, len(password)
+        # 3. Total bits = entropy per character * total character count
+        total_bits = shannon_entropy * length
+
+        return round(total_bits), length
 
     def attach_entry(self, entry_widget):
         """Bind live updates to a specific Entry widget."""
@@ -93,17 +83,18 @@ class PasswordQualityMeter(ttk.Frame):
         fill_ratio = min(bits / float(self.max_bits), 1.0)
         fill_width = int(canvas_width * fill_ratio)
 
-        # Dynamic color thresholding
-        if bits < 40:
-            bar_color = "#ff4d4d"  # Red
-        elif bits < 64:
-            bar_color = "#ff9900"  # Orange
+        # KeePass standard thresholds: 
+        # < 64 (Very Weak), 64-80 (Weak), 80-112 (Moderate), 112-128 (Strong), >= 128 (Very Strong)
+        if bits < 64:
+            bar_color = "#ff4d4d"  # Very Weak (Red)
         elif bits < 80:
-            bar_color = "#ffcc00"  # Yellow
-        elif bits < 100:
-            bar_color = "#99cc00"  # Light Green
+            bar_color = "#ff9900"  # Weak (Orange)
+        elif bits < 112:
+            bar_color = "#ffcc00"  # Moderate (Yellow)
+        elif bits < 128:
+            bar_color = "#99cc00"  # Strong (Light Green)
         else:
-            bar_color = "#00cc44"  # Dark Green
+            bar_color = "#00cc44"  # Very Strong (Dark Green)
 
         if fill_width > 0:
             self.quality_bar.create_rectangle(

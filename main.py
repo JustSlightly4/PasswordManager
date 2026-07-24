@@ -94,7 +94,7 @@ def main():
     entry_menu.add_command(label="Copy Password", command=lambda: copy_password(root))
     entry_menu.add_separator()
     entry_menu.add_command(label="Add Entry", command=lambda: add_entry(root))
-    entry_menu.add_command(label="Edit Entry", command=lambda: print("Copied"))
+    entry_menu.add_command(label="Edit Entry", command=lambda: edit_entry(root))
     entry_menu.add_command(label="Duplicate Entry", command=lambda: duplicate_entry(root))
     entry_menu.add_command(label="Delete Entry", command=lambda: delete_entry(root))
     entry_menu.add_separator()

@@ -5,6 +5,7 @@ import apsw
 import math
 import string
 from passwordqualitymeter import PasswordQualityMeter
+from passwordgenerator import PasswordGenerator
 
 import tkinter as tk
 from tkinter import ttk, messagebox
@@ -843,3 +844,445 @@ def show_master_key_dialog(
 
     dialog.bind("<Return>", lambda event: handle_submit())
     dialog.after(10, quality_meter.update_meter)
+
+def show_entry_dialog(root, is_edit=False, item_id=None):
+    """
+    Reusable dialog for both Add Entry and Edit Entry matching KeePass UI.
+    """
+    if root.conn is None:
+        messagebox.showwarning("No Database", "Please open or create a database first!")
+        return
+
+    dialog_title = "Edit Entry" if is_edit else "Add Entry"
+    subtitle = "Edit an existing entry." if is_edit else "Create a new entry."
+
+    dialog = tk.Toplevel(root)
+    dialog.title(dialog_title)
+    dialog.geometry("540x560")
+    dialog.resizable(False, False)
+    dialog.grab_set()
+    dialog.transient(root)
+    dialog.configure(bg="#f0f0f0")
+
+    # ==================== HEADER BANNER ====================
+    header_frame = tk.Frame(dialog, bg="#323e51", height=70)
+    header_frame.pack(side="top", fill="x")
+    header_frame.pack_propagate(False)
+
+    title_label = tk.Label(
+        header_frame,
+        text=dialog_title,
+        font=("Segoe UI", 13, "bold"),
+        fg="white",
+        bg="#323e51",
+    )
+    title_label.pack(anchor="w", padx=15, pady=(10, 0))
+
+    sub_label = tk.Label(
+        header_frame,
+        text=subtitle,
+        font=("Segoe UI", 9),
+        fg="#d0d7de",
+        bg="#323e51",
+    )
+    sub_label.pack(anchor="w", padx=15, pady=(2, 5))
+
+    accent_bar = tk.Frame(dialog, bg="#e67e22", height=2)
+    accent_bar.pack(side="top", fill="x")
+
+    # ==================== TABBED NOTEBOOK ====================
+    notebook = ttk.Notebook(dialog)
+    notebook.pack(fill="both", expand=True, padx=8, pady=8)
+
+    tab_general = ttk.Frame(notebook, padding=12)
+
+    notebook.add(tab_general, text="General")
+
+    # ==================== GENERAL TAB CONTENT ====================
+    tab_general.columnconfigure(1, weight=1)
+
+    # 1. Title Row
+    ttk.Label(tab_general, text="Title:").grid(row=0, column=0, sticky="w", pady=4)
+    title_entry = ttk.Entry(tab_general)
+    title_entry.grid(row=0, column=1, sticky="ew", pady=4, padx=(0, 5))
+    
+    btn_icon = ttk.Button(tab_general, text="🔑", width=4)
+    btn_icon.grid(row=0, column=2, pady=4)
+
+    # 2. Username Row
+    ttk.Label(tab_general, text="User name:").grid(row=1, column=0, sticky="w", pady=4)
+    username_entry = ttk.Entry(tab_general)
+    username_entry.grid(row=1, column=1, columnspan=2, sticky="ew", pady=4)
+
+    # 3. Password Row
+    ttk.Label(tab_general, text="Password:").grid(row=2, column=0, sticky="w", pady=4)
+    password_entry = ttk.Entry(tab_general, show="•")
+    password_entry.grid(row=2, column=1, sticky="ew", pady=4, padx=(0, 5))
+
+    def toggle_show_password():
+        show_char = "" if password_entry.cget("show") == "•" else "•"
+        password_entry.config(show=show_char)
+        repeat_entry.config(show=show_char)
+
+    btn_gen = ttk.Button(tab_general, text="•••", width=4, command=toggle_show_password)
+    btn_gen.grid(row=2, column=2, pady=4)
+
+    # 4. Repeat Password Row (tk.Entry used for background highlight)
+    ttk.Label(tab_general, text="Repeat:").grid(row=3, column=0, sticky="w", pady=4)
+    repeat_entry = tk.Entry(tab_general, show="•", bg="#ffcccc", relief="solid", bd=1)
+    repeat_entry.grid(row=3, column=1, sticky="ew", pady=4, padx=(0, 5))
+
+    # ==================== REPEAT PASSWORD HIGHLIGHT VALIDATION ====================
+    def validate_repeat_password(event=None):
+        p1 = password_entry.get()
+        p2 = repeat_entry.get()
+        if p2 == "":
+            repeat_entry.config(bg="#ffcccc")
+        elif p1 == p2:
+            repeat_entry.config(bg="#ffffff")
+        else:
+            repeat_entry.config(bg="#ffcccc")
+
+    password_entry.bind("<KeyRelease>", validate_repeat_password, add="+")
+    repeat_entry.bind("<KeyRelease>", validate_repeat_password, add="+")
+
+    def open_password_generator():
+        def set_generated_password(gen_pwd):
+            # Clear existing text
+            password_entry.delete(0, tk.END)
+            repeat_entry.delete(0, tk.END)
+            
+            # Insert generated password
+            password_entry.insert(0, gen_pwd)
+            repeat_entry.insert(0, gen_pwd)
+            
+            # Re-trigger validation highlighting & quality meter
+            validate_repeat_password()
+            quality_meter.update_meter()
+
+        # Launch generator dialog with the callback attached
+        show_password_generator_dialog(dialog, callback=set_generated_password)
+
+    btn_tools_pass = ttk.Button(tab_general, text="🛠️", width=4, command=open_password_generator)
+    btn_tools_pass.grid(row=3, column=2, pady=4)
+
+    # 5. Quality Meter Row
+    ttk.Label(tab_general, text="Quality:").grid(row=4, column=0, sticky="w", pady=4)
+    quality_meter = PasswordQualityMeter(tab_general, entry_widget=password_entry)
+    quality_meter.grid(row=4, column=1, sticky="ew", pady=4, padx=(0, 5))
+
+    btn_info = ttk.Button(tab_general, text="ℹ️", width=4)
+    btn_info.grid(row=4, column=2, pady=4)
+
+    # 6. URL Row
+    ttk.Label(tab_general, text="URL:").grid(row=5, column=0, sticky="w", pady=4)
+    url_entry = ttk.Entry(tab_general)
+    url_entry.grid(row=5, column=1, columnspan=2, sticky="ew", pady=4)
+
+    # 7. Notes Row
+    ttk.Label(tab_general, text="Notes:").grid(row=6, column=0, sticky="nw", pady=4)
+    notes_text = tk.Text(tab_general, height=6, font=("Segoe UI", 9), relief="solid", bd=1)
+    notes_text.grid(row=6, column=1, columnspan=2, sticky="nsew", pady=4)
+    tab_general.rowconfigure(6, weight=1)
+
+    # ==================== POPULATE EDIT DATA ====================
+    original_title = None
+    if is_edit and item_id:
+        values = root.database_table.item(item_id, "values")
+        if values:
+            original_title = values[0]
+            
+            # Fetch full raw fields from database
+            cursor = root.conn.cursor()
+            cursor.execute("SELECT title, username, password, url, notes FROM users WHERE title=?", (original_title,))
+            row = cursor.fetchone()
+            if row:
+                title_entry.insert(0, row[0] or "")
+                username_entry.insert(0, row[1] or "")
+                password_entry.insert(0, row[2] or "")
+                repeat_entry.insert(0, row[2] or "")
+                url_entry.insert(0, row[3] or "")
+                notes_text.insert("1.0", row[4] or "")
+
+    # Trigger initial validation state
+    validate_repeat_password()
+
+    # ==================== BOTTOM BUTTON BAR ====================
+    sep = ttk.Separator(dialog, orient="horizontal")
+    sep.pack(side="bottom", fill="x")
+
+    bottom_bar = ttk.Frame(dialog, padding=(10, 8))
+    bottom_bar.pack(side="bottom", fill="x")
+
+    btn_cancel = ttk.Button(bottom_bar, text="Cancel", width=10, command=dialog.destroy)
+    btn_cancel.pack(side="right", padx=(5, 0))
+
+    def save_entry():
+        title = title_entry.get().strip()
+        username = username_entry.get().strip()
+        pwd = password_entry.get()
+        repeat_pwd = repeat_entry.get()
+        url = url_entry.get().strip()
+        notes = notes_text.get("1.0", tk.END).strip()
+
+        if not title:
+            messagebox.showerror("Error", "Title is required!", parent=dialog)
+            return
+
+        if pwd != repeat_pwd:
+            messagebox.showerror("Error", "Passwords do not match!", parent=dialog)
+            return
+
+        try:
+            cursor = root.conn.cursor()
+            if is_edit:
+                cursor.execute(
+                    """
+                    UPDATE users 
+                    SET title=?, username=?, password=?, url=?, notes=?, last_modification=CURRENT_TIMESTAMP
+                    WHERE title=?
+                    """,
+                    (title, username, pwd, url, notes, original_title)
+                )
+            else:
+                cursor.execute(
+                    """
+                    INSERT INTO users (title, username, password, url, notes)
+                    VALUES (?, ?, ?, ?, ?)
+                    """,
+                    (title, username, pwd, url, notes)
+                )
+
+            populate_table(root)
+            dialog.destroy()
+
+        except apsw.ConstraintError:
+            messagebox.showerror("Error", f"An entry titled '{title}' already exists.", parent=dialog)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save entry: {e}", parent=dialog)
+
+    btn_ok = ttk.Button(bottom_bar, text="OK", width=10, command=save_entry)
+    btn_ok.pack(side="right")
+
+    dialog.bind("<Return>", lambda e: save_entry())
+    dialog.after(10, quality_meter.update_meter)
+
+
+def add_entry(root):
+    show_entry_dialog(root, is_edit=False)
+
+
+def edit_entry(root):
+    if root.conn is None:
+        messagebox.showwarning("Warning", "No database is currently open.", parent=root)
+        return
+
+    selected = root.database_table.selection()
+    if not selected:
+        messagebox.showinfo("Information", "Please select an entry to edit.", parent=root)
+        return
+
+    show_entry_dialog(root, is_edit=True, item_id=selected[0])
+
+def show_password_generator_dialog(parent_window, callback=None):
+    """Displays the KeePass-style Password Generation Options dialog box.
+
+    :param parent_window: The Tkinter root/toplevel window parent.
+    :param callback: Optional function callback receiving the generated password
+        string upon 'OK'.
+    """
+    dialog = tk.Toplevel(parent_window)
+    dialog.title("Password Generator")
+    dialog.geometry("540x540")
+    dialog.resizable(False, False)
+    dialog.grab_set()
+    dialog.transient(parent_window)
+    dialog.configure(bg="#f0f0f0")
+
+    # ==================== HEADER BANNER ====================
+    header_frame = tk.Frame(dialog, bg="#1b2a47", height=70)
+    header_frame.pack(side="top", fill="x")
+    header_frame.pack_propagate(False)
+
+    title_label = tk.Label(
+        header_frame,
+        text="Password Generation Options",
+        font=("Segoe UI", 13, "bold"),
+        fg="white",
+        bg="#1b2a47",
+    )
+    title_label.pack(anchor="w", padx=20, pady=(10, 0))
+
+    subtitle_label = tk.Label(
+        header_frame,
+        text="Here you can define properties of generated passwords.",
+        font=("Segoe UI", 9),
+        fg="#a2b3d1",
+        bg="#1b2a47",
+    )
+    subtitle_label.pack(anchor="w", padx=20, pady=(2, 5))
+
+    accent_bar = tk.Frame(dialog, bg="#e67e22", height=2)
+    accent_bar.pack(side="top", fill="x")
+
+    # ==================== TABBED NOTEBOOK ====================
+    notebook = ttk.Notebook(dialog)
+    notebook.pack(fill="both", expand=True, padx=8, pady=8)
+
+    tab_settings = ttk.Frame(notebook, padding=10)
+    tab_advanced = ttk.Frame(notebook, padding=10)
+    tab_preview = ttk.Frame(notebook, padding=10)
+
+    notebook.add(tab_settings, text="Settings")
+    notebook.add(tab_advanced, text="Advanced")
+    notebook.add(tab_preview, text="Preview")
+
+    # ==================== PROFILE ROW ====================
+    profile_frame = ttk.Frame(tab_settings)
+    profile_frame.pack(fill="x", pady=(0, 10))
+
+    ttk.Label(profile_frame, text="Profile:").pack(side="left", padx=(0, 5))
+
+    profile_cb = ttk.Combobox(
+        profile_frame,
+        values=[
+            "(Derive from previous password)",
+            "Automatically generated passwords",
+            "Hex Key 128-bit",
+            "Hex Key 256-bit",
+        ],
+        state="readonly",
+    )
+    profile_cb.current(0)
+    profile_cb.pack(side="left", fill="x", expand=True, padx=(0, 5))
+
+    btn_edit = ttk.Button(profile_frame, text="📝", width=3)
+    btn_edit.pack(side="left", padx=1)
+
+    btn_del = ttk.Button(profile_frame, text="✖", width=3)
+    btn_del.pack(side="left", padx=1)
+
+    btn_sec = ttk.Button(profile_frame, text="🛡️", width=3)
+    btn_sec.pack(side="left", padx=1)
+
+    # ==================== CURRENT SETTINGS GROUP ====================
+    settings_group = ttk.LabelFrame(
+        tab_settings, text="Character Set Options", padding=10
+    )
+    settings_group.pack(fill="both", expand=True)
+
+    charset_container = ttk.Frame(settings_group)
+    charset_container.pack(fill="x", anchor="w")
+
+    # Length Spinbox
+    len_frame = ttk.Frame(charset_container)
+    len_frame.pack(fill="x", pady=2)
+    ttk.Label(len_frame, text="Length of generated password:").pack(
+        side="left"
+    )
+
+    var_length = tk.IntVar(value=20)
+    spin_length = ttk.Spinbox(
+        len_frame, from_=1, to=128, textvariable=var_length, width=6
+    )
+    spin_length.pack(side="right")
+
+    # Checkboxes Grid
+    chk_frame = ttk.Frame(charset_container)
+    chk_frame.pack(fill="x", pady=5)
+    chk_frame.columnconfigure(0, weight=1)
+    chk_frame.columnconfigure(1, weight=1)
+
+    var_upper = tk.BooleanVar(value=True)
+    var_lower = tk.BooleanVar(value=True)
+    var_digits = tk.BooleanVar(value=True)
+    var_minus = tk.BooleanVar(value=False)
+    var_underline = tk.BooleanVar(value=False)
+
+    var_space = tk.BooleanVar(value=False)
+    var_special = tk.BooleanVar(value=False)
+    var_brackets = tk.BooleanVar(value=False)
+    var_latin1 = tk.BooleanVar(value=False)
+
+    # Column 1
+    ttk.Checkbutton(
+        chk_frame, text="Upper-case (A, B, C, ...)", variable=var_upper
+    ).grid(row=0, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(
+        chk_frame, text="Lower-case (a, b, c, ...)", variable=var_lower
+    ).grid(row=1, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(
+        chk_frame, text="Digits (0, 1, 2, ...)", variable=var_digits
+    ).grid(row=2, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(
+        chk_frame, text="Minus (-)", variable=var_minus
+    ).grid(row=3, column=0, sticky="w", pady=2)
+    ttk.Checkbutton(
+        chk_frame, text="Underline (_)", variable=var_underline
+    ).grid(row=4, column=0, sticky="w", pady=2)
+
+    # Column 2
+    ttk.Checkbutton(
+        chk_frame, text="Space ( )", variable=var_space
+    ).grid(row=0, column=1, sticky="w", pady=2)
+    ttk.Checkbutton(
+        chk_frame, text="Special (!, $, %, &, ...)", variable=var_special
+    ).grid(row=1, column=1, sticky="w", pady=2)
+    ttk.Checkbutton(
+        chk_frame,
+        text="Brackets ([, ], {, }, (, ), <, >)",
+        variable=var_brackets,
+    ).grid(row=2, column=1, sticky="w", pady=2)
+    ttk.Checkbutton(
+        chk_frame,
+        text="Latin-1 Supplement (Ä, μ, ¶, ...)",
+        variable=var_latin1,
+    ).grid(row=3, column=1, sticky="w", pady=2)
+
+    # Custom characters input
+    ttk.Label(
+        charset_container, text="Also include the following characters:"
+    ).pack(anchor="w", pady=(5, 2))
+    ent_custom_chars = ttk.Entry(charset_container)
+    ent_custom_chars.pack(fill="x", pady=(0, 5))
+
+    # ==================== BOTTOM BUTTON BAR ====================
+    sep = ttk.Separator(dialog, orient="horizontal")
+    sep.pack(side="bottom", fill="x")
+
+    btn_bar = ttk.Frame(dialog, padding=(10, 8))
+    btn_bar.pack(side="bottom", fill="x")
+
+    btn_help = ttk.Button(btn_bar, text="Help", width=10)
+    btn_help.pack(side="left")
+
+    btn_cancel = ttk.Button(
+        btn_bar, text="Cancel", width=10, command=dialog.destroy
+    )
+    btn_cancel.pack(side="right", padx=(5, 0))
+
+    def handle_ok():
+        try:
+            generated_pwd = PasswordGenerator.generate(
+                length=var_length.get(),
+                use_upper=var_upper.get(),
+                use_lower=var_lower.get(),
+                use_digits=var_digits.get(),
+                use_minus=var_minus.get(),
+                use_underline=var_underline.get(),
+                use_space=var_space.get(),
+                use_special=var_special.get(),
+                use_brackets=var_brackets.get(),
+                use_latin1=var_latin1.get(),
+                custom_chars=ent_custom_chars.get(),
+            )
+
+            if callback:
+                callback(generated_pwd)
+
+            dialog.destroy()
+        except Exception as e:
+            messagebox.showerror("Error", str(e), parent=dialog)
+
+    btn_ok = ttk.Button(btn_bar, text="OK", width=10, command=handle_ok)
+    btn_ok.pack(side="right")
